@@ -1,0 +1,10 @@
+fastapi>=0.115,<0.120
+uvicorn[standard]>=0.34,<0.40
+pydantic>=2.9,<3
+pydantic-settings>=2.6,<3
+python-dotenv>=1.0,<2
+groq>=0.15,<1
+sentence-transformers>=3.3,<4
+faiss-cpu>=1.9
+langgraph>=1.1,<2
+numpy>=1.26,<3
