@@ -5,6 +5,12 @@ conhecimento de 100 filmes, orquestrado com LangGraph, busca vetorial
 com FAISS e geracao de resposta final com a Groq (modelo
 `qwen/qwen3.8-27b`).
 
+Na Atividade 2, o projeto evoluiu com foco em Engenharia de Prompt: os
+prompts foram identificados, refinados e avaliados antes e depois, e
+foram acrescentadas uma etapa de analise da pergunta e uma etapa de
+verificacao da resposta. O relatorio completo esta em
+[`docs/ENGENHARIA_DE_PROMPT.md`](docs/ENGENHARIA_DE_PROMPT.md).
+
 ## Equipe
 
 - Arthur Marques da Silveira
@@ -25,6 +31,8 @@ com FAISS e geracao de resposta final com a Groq (modelo
 - [Como executar no GitHub Codespaces](#como-executar-no-github-codespaces)
 - [Regerando a base de conhecimento](#regerando-a-base-de-conhecimento)
 - [Uso da interface](#uso-da-interface)
+- [Engenharia de prompt (Atividade 2)](#engenharia-de-prompt-atividade-2)
+- [Testes e avaliacao dos prompts](#testes-e-avaliacao-dos-prompts)
 - [Decisoes e observacoes tecnicas](#decisoes-e-observacoes-tecnicas)
 - [Limitacoes conhecidas](#limitacoes-conhecidas)
 
@@ -64,11 +72,13 @@ pelo TMDb, conforme exigido pelos
 [ Backend: FastAPI ]  (porta 8000)
       |
       |-- LangGraph (orquestracao do fluxo de RAG)
-      |     |-- reescrita de pergunta (Groq, quando ha historico)
+      |     |-- analise da pergunta (Groq, saida JSON): dominio, ambiguidade
+      |     |     e pergunta legitima
       |     |-- recuperacao vetorial (FAISS + sentence-transformers)
       |     |-- roteamento condicional (com/sem evidencia)
-      |     |-- montagem de contexto
+      |     |-- montagem de contexto (agrupado por filme)
       |     |-- geracao da resposta final (Groq)
+      |     |-- verificacao da resposta (Groq, saida JSON)
       |
       |-- Memoria de conversa (em memoria de processo, por sessao)
       |
@@ -106,28 +116,37 @@ por HTTP.
    containers).
 7. Quando o usuario envia uma pergunta pela interface, o backend recebe
    a mensagem e o identificador da sessao de conversa.
-8. Se ja houver historico na sessao, a pergunta e reescrita por uma
-   chamada a LLM (Groq) para ficar autossuficiente (por exemplo,
-   substituindo "ele" ou "esse filme" pelo nome especifico mencionado
-   anteriormente na conversa). Isso melhora a qualidade da busca
-   vetorial em perguntas de continuidade.
-9. A pergunta (reescrita ou original) e usada para buscar os 8 chunks
-   mais relevantes no indice FAISS.
+8. A mensagem passa primeiro por um prompt de analise (Groq, saida em
+   JSON), que a classifica como `FILMES`, `AMBIGUA` ou `FORA_DOMINIO`,
+   extrai a pergunta legitima (descartando instrucoes dirigidas ao
+   assistente) e, quando ha historico, resolve referencias como "ele"
+   ou "esse filme". Perguntas ambiguas recebem um pedido de
+   esclarecimento e perguntas fora do dominio recebem a abstencao,
+   ambas sem busca e sem geracao.
+9. A pergunta autonoma e usada para buscar os 8 chunks mais relevantes
+   no indice FAISS.
 10. Um roteamento condicional no grafo do LangGraph verifica se o score
     de similaridade do melhor resultado ultrapassa um limiar minimo
     (0.35). Se nao ultrapassar, o fluxo desvia para uma resposta padrao
     de abstencao, sem chamar a LLM e sem exibir nenhuma fonte.
-11. Se houver evidencia suficiente, os chunks recuperados sao
-    combinados em um contexto e enviados, junto com o historico da
-    conversa, para a Groq gerar a resposta final.
-12. A resposta e devolvida a interface junto com a(s) fonte(s) (titulo
+11. Se houver evidencia suficiente, os chunks recuperados sao agrupados
+    por filme em blocos delimitados e enviados, junto com o historico
+    da conversa, para a Groq gerar a resposta final. As instrucoes vao
+    na mensagem `system` e os dados na mensagem `user`.
+12. A resposta gerada passa por um prompt de verificacao (Groq, saida em
+    JSON), que checa se ela esta sustentada pelas fontes citadas. Se
+    nao estiver, e substituida por uma resposta de evidencia
+    insuficiente.
+13. A resposta e devolvida a interface junto com a(s) fonte(s) (titulo
     do filme) efetivamente citada(s) pela LLM no formato [Fonte X]; se
     nenhuma fonte for citada (por exemplo, na resposta de abstencao),
     nenhuma fonte e exibida.
 
-Todo esse fluxo (reescrita, recuperacao, decisao condicional, montagem
-de contexto, geracao) e implementado como um grafo do LangGraph em
-`backend/app/rag_graph.py`.
+Todo esse fluxo (analise, recuperacao, decisoes condicionais, montagem
+de contexto, geracao e verificacao) e implementado como um grafo do
+LangGraph em `backend/app/rag_graph.py`. Com `PROMPT_VERSION=v1`, o fluxo
+volta ao comportamento da Atividade 1 (reescrita de pergunta quando ha
+historico, sem analise e sem verificacao).
 
 ## Estrutura do repositorio
 
@@ -140,6 +159,13 @@ de contexto, geracao) e implementado como um grafo do LangGraph em
 │   │   ├── config.py             # Configuracao via variaveis de ambiente
 │   │   ├── models.py             # Schemas Pydantic
 │   │   ├── rag_graph.py          # Grafo LangGraph (RAG conversacional)
+│   │   ├── llm.py                # Chamada centralizada a Groq (modo JSON, tokens)
+│   │   ├── analise.py            # Contrato JSON da analise da pergunta
+│   │   ├── verificacao.py        # Contrato JSON da verificacao da resposta
+│   │   ├── prompts/
+│   │   │   ├── __init__.py       # Selecao da versao de prompt
+│   │   │   ├── v1.py             # Prompts da Atividade 1 (baseline)
+│   │   │   └── v2.py             # Prompts refinados (Atividade 2)
 │   │   ├── retriever.py          # Busca vetorial no indice FAISS
 │   │   ├── memory.py             # Memoria de conversa por sessao
 │   │   └── build_index.py        # Script de indexacao (chunking + FAISS)
@@ -147,6 +173,20 @@ de contexto, geracao) e implementado como um grafo do LangGraph em
 │   │   ├── filmes.json           # Base de conhecimento (100 filmes, TMDb)
 │   │   ├── coletar_tmdb.py       # Script que coleta e gera filmes.json
 │   │   └── requirements-dados.txt # Dependencia extra so para coletar_tmdb.py
+│   ├── tests/
+│   │   ├── casos_teste.json              # Suite principal (27 casos)
+│   │   ├── casos_analise.json            # Analise isolada (16 casos)
+│   │   ├── casos_verificacao.json        # Verificacao isolada (12 casos)
+│   │   ├── casos_injecao_indireta.json   # Injection indireta (7 casos)
+│   │   ├── documentos_injecao.json       # Documentos ficticios com instrucoes maliciosas
+│   │   ├── avaliar_prompts.py            # Executa a suite por versao de prompt
+│   │   ├── avaliar_analise.py            # Compara zero-shot e few-shot
+│   │   ├── avaliar_verificador.py        # Avalia o verificador
+│   │   ├── avaliar_injecao_indireta.py   # Executa a injection indireta
+│   │   ├── base_injecao.py               # Mescla documentos envenenados na busca
+│   │   ├── resumir_injecao.py            # Resume os resultados de injection indireta
+│   │   ├── comum.py                      # Funcoes compartilhadas
+│   │   └── resultados/                   # JSONs gerados pelas avaliacoes
 │   ├── requirements.txt
 │   └── Dockerfile
 │   └── .dockerignore
@@ -157,6 +197,8 @@ de contexto, geracao) e implementado como um grafo do LangGraph em
 │   ├── config.js                 # URL da API (ajustavel por ambiente)
 │   ├── nginx.conf
 │   └── Dockerfile
+├── docs/
+│   └── ENGENHARIA_DE_PROMPT.md       # Relatorio da Atividade 2
 ├── docker-compose.yml
 ├── .env.example
 ├── .gitignore
@@ -186,17 +228,33 @@ cp .env.example .env
 Edite o `.env` e substitua `coloque_sua_chave_groq_aqui` pela sua chave
 real (formato `gsk_...`):
 
-| Variavel       | Obrigatoria | Padrao             | Descricao                                              |
-| -------------- | :---------: | ------------------ | ------------------------------------------------------ |
-| `GROQ_API_KEY` |     Sim     | -                  | Chave de API da Groq, usada na geracao da resposta.    |
-| `GROQ_MODEL`   |     Nao     | `qwen/qwen3.8-27b` | Modelo da Groq utilizado na geracao da resposta final. |
-| `CORS_ORIGINS` |     Nao     | `*`                | Origens permitidas para chamadas do frontend a API.    |
+| Variavel             | Obrigatoria | Padrao             | Descricao                                                         |
+| -------------------- | :---------: | ------------------ | ----------------------------------------------------------------- |
+| `GROQ_API_KEY`       |     Sim     | -                  | Chave de API da Groq, usada na analise, geracao e verificacao.    |
+| `GROQ_MODEL`         |     Nao     | `qwen/qwen3.8-27b` | Modelo da Groq utilizado em todas as chamadas a LLM.              |
+| `CORS_ORIGINS`       |     Nao     | `*`                | Origens permitidas para chamadas do frontend a API.               |
+| `PROMPT_VERSION`     |     Nao     | `v2`               | Versao dos prompts. `v1` restaura o comportamento da Atividade 1. |
+| `FEW_SHOT`           |     Nao     | `true`             | Inclui exemplos (few-shot) no prompt de analise da pergunta.      |
+| `VERIFICAR_RESPOSTA` |     Nao     | `true`             | Liga ou desliga a etapa de verificacao da resposta gerada.        |
 
-Outros parametros do pipeline (`TOP_K`, `LIMIAR_EVIDENCIA`,
-`MAX_TURNOS_HISTORICO`, `LLM_TEMPERATURE`, `LLM_MAX_TOKENS`) tambem sao
-configuraveis por variavel de ambiente; os valores padrao e o
-raciocinio por tras de cada um estao documentados diretamente em
-`backend/app/config.py`.
+O `docker-compose.yml` repassa essas seis variaveis ao container do
+backend. Para trocar de versao ou desligar uma etapa, edite o `.env` e
+suba os containers novamente com `docker compose up`.
+
+Outros parametros do pipeline sao lidos por `backend/app/config.py` e
+podem ser definidos por variavel de ambiente na execucao local sem
+Docker (o `docker-compose.yml` nao os repassa; para usa-los em
+container, inclua-os na secao `environment` do servico `backend`):
+
+| Variavel                | Padrao | Descricao                                                               |
+| ----------------------- | :----: | ----------------------------------------------------------------------- |
+| `TOP_K`                 |  `8`   | Quantidade de chunks recuperados do indice FAISS por pergunta.          |
+| `LIMIAR_EVIDENCIA`      | `0.35` | Score minimo do melhor chunk; abaixo dele o fluxo vai para a abstencao. |
+| `MAX_TURNOS_HISTORICO`  |  `6`   | Quantidade maxima de turnos de historico considerados na conversa.      |
+| `LLM_TEMPERATURE`       | `0.1`  | Temperatura da geracao da resposta (analise e verificacao usam 0).      |
+| `LLM_MAX_TOKENS`        | `900`  | Limite de tokens da resposta gerada.                                    |
+| `EMBEDDING_MODEL_NAME`  |   -    | Modelo de embeddings (`paraphrase-multilingual-MiniLM-L12-v2`).         |
+| `DATA_DIR`, `INDEX_DIR` |   -    | Pastas da base de conhecimento e do indice FAISS.                       |
 
 ## Como executar com Docker (recomendado)
 
@@ -399,6 +457,90 @@ com criterios diferentes).
   Franca?") ou sem evidencia suficiente recebem uma resposta padrao
   informando que a informacao nao foi encontrada na base consultada,
   em vez de uma resposta inventada pela LLM.
+- Perguntas ambiguas, em que nenhum filme pode ser identificado (por
+  exemplo, "qual a duracao?" no inicio de uma conversa), fazem o
+  assistente pedir o titulo do filme.
+- Se a verificacao concluir que a resposta gerada nao esta sustentada
+  pelas fontes, o assistente informa que nao encontrou evidencia
+  suficiente, em vez de entregar a resposta.
+
+## Engenharia de prompt (Atividade 2)
+
+A versao dos prompts e escolhida por `PROMPT_VERSION`. A `v1` e a
+original da Atividade 1, mantida congelada para comparacao; a `v2` e a
+versao refinada, usada por padrao.
+
+| Prompt      | No do grafo      | Responsabilidade                                                                                                  | Saida                 |
+| ----------- | ---------------- | ----------------------------------------------------------------------------------------------------------------- | --------------------- |
+| Analise     | `analisar`       | Classificar a mensagem (`FILMES`, `AMBIGUA`, `FORA_DOMINIO`), extrair a pergunta legitima e sinalizar manipulacao | JSON validado         |
+| Geracao     | `gerar_resposta` | Responder usando somente o contexto recuperado, citando as fontes                                                 | Texto com `[Fonte N]` |
+| Verificacao | `verificar`      | Checar se a resposta esta sustentada pelas fontes citadas                                                         | JSON validado         |
+
+Tecnicas aplicadas: papel, tarefa, regras e formato de saida explicitos;
+separacao entre instrucoes (`system`) e dados (`user`); delimitadores
+`<contexto>`, `<fonte>`, `<pergunta>`; contexto agrupado por filme com
+`<` e `>` neutralizados; comportamento definido quando nao ha
+evidencia; zero-shot e few-shot no prompt de analise; decomposicao em
+prompts menores encadeados pelo grafo; e defesas contra prompt
+injection direta e indireta.
+
+Resultado na suite de 27 casos (mesmos casos, mesmo modelo, trocando
+apenas a versao dos prompts):
+
+|                         |   v1   |   v2   |
+| ----------------------- | :----: | :----: |
+| Casos que passam        | 19/27  | 24/27  |
+| Injection direta        |  3/6   |  6/6   |
+| Perguntas ambiguas      |  0/2   |  2/2   |
+| Chamadas a LLM na suite |   31   |   72   |
+| Tokens na suite         | 34.495 | 83.978 |
+
+A v2 acerta mais, mas consome cerca de 2,4 vezes mais tokens. No teste de
+injection indireta (instrucao maliciosa dentro de um documento
+recuperado), nenhuma das duas versoes obedeceu a injection, entao esse
+teste nao diferencia as versoes. Os detalhes, as limitacoes e as
+ressalvas de cada medicao estao em
+[`docs/ENGENHARIA_DE_PROMPT.md`](docs/ENGENHARIA_DE_PROMPT.md).
+
+## Testes e avaliacao dos prompts
+
+Os testes sao scripts Python que chamam a aplicacao de verdade (incluindo
+a Groq) e comparam as respostas com regras automaticas. Eles rodam no
+ambiente local (ver "Como executar localmente sem Docker"), e nao dentro
+do container: precisam da chave da Groq no `.env` e do indice gerado
+(`python -m app.build_index`). A partir de `backend/`, com o ambiente
+virtual ativo:
+
+```bash
+python -m tests.avaliar_prompts --versoes v1 v2
+python -m tests.avaliar_analise
+python -m tests.avaliar_verificador
+python -m tests.avaliar_injecao_indireta --apenas-recuperacao
+python -m tests.avaliar_injecao_indireta --versoes v1 v2 --forcar-recuperacao
+python -m tests.resumir_injecao
+```
+
+| Comando                    | O que faz                                                                                                     |
+| -------------------------- | ------------------------------------------------------------------------------------------------------------- |
+| `avaliar_prompts`          | Suite principal de 27 casos, por versao de prompt                                                             |
+| `avaliar_analise`          | Compara o prompt de analise em zero-shot e few-shot (16 casos)                                                |
+| `avaliar_verificador`      | Avalia o prompt de verificacao isoladamente (12 casos)                                                        |
+| `avaliar_injecao_indireta` | Mescla documentos ficticios com instrucoes maliciosas na busca e verifica se a aplicacao as obedece (7 casos) |
+| `resumir_injecao`          | Resume os resultados de injection indireta ja gerados, sem chamar a LLM                                       |
+
+Cada execucao salva um JSON em `backend/tests/resultados/`. Os
+resultados usados no relatorio estao nessa pasta, e as execucoes
+intermediarias, em `backend/tests/resultados/historico/`.
+
+Observacoes importantes:
+
+- Uma execucao completa da suite na v2 consome cerca de 84 mil tokens da
+  Groq. A conta gratuita tem limites de tokens por minuto e por dia; os
+  scripts controlam o ritmo (`--tpm`, padrao 6000), e as opcoes
+  `--categorias` e `--grupos` permitem rodar apenas parte dos casos.
+- `--apenas-recuperacao` nao chama a LLM e nao consome tokens.
+- Como a LLM nao e deterministica, os numeros podem variar entre
+  execucoes.
 
 ## Decisoes e observacoes tecnicas
 
@@ -430,7 +572,11 @@ quem for avaliar o projeto.
   usadas diretamente na busca vetorial, geram embeddings pouco
   informativos e podem recuperar chunks do filme errado. Quando ha
   historico de conversa, a pergunta e reescrita por uma chamada a LLM
-  antes da busca no FAISS, tornando-a autossuficiente.
+  antes da busca no FAISS, tornando-a autossuficiente. Na v2, essa
+  tarefa passou para o no de analise, que tambem classifica a
+  mensagem e descarta instrucoes maliciosas antes da busca; a
+  reescrita da v1 permanece apenas como reserva, caso a analise
+  falhe.
 - Filtragem de fontes citadas: a lista de fontes exibida na interface
   mostra apenas os chunks cuja numeracao [Fonte X] foi efetivamente
   citada pela LLM na resposta. Quando a LLM nao cita nenhuma fonte (por
@@ -463,8 +609,9 @@ quem for avaliar o projeto.
   reiniciado.
 - A conta gratuita da Groq tem limites de taxa (requisicoes e tokens
   por minuto). Em uso intenso e continuo, e possivel esbarrar
-  ocasionalmente em erros 429, especialmente em perguntas de
-  continuidade (que fazem duas chamadas a LLM: reescrita e geracao).
+  ocasionalmente em erros 429. Na v2, uma pergunta que chega a geracao
+  faz ate tres chamadas a LLM (analise, geracao e verificacao);
+  `FEW_SHOT=false` e `VERIFICAR_RESPOSTA=false` reduzem o consumo.
 - Para alguns filmes, secoes especificas
   podem, em casos pontuais, nao ser recuperadas entre os 8 candidatos
   considerados, caso a secao correta esteja competindo de perto com
@@ -479,3 +626,18 @@ quem for avaliar o projeto.
   (por exemplo, duracao ou orcamento de alguns titulos) sao registrados
   explicitamente como "nao informado" na base, e o assistente reporta
   essa ausencia em vez de inventar um valor.
+- O verificador de respostas e rigoroso: reprova uma resposta que afirme
+  qualquer fato ausente das fontes, mesmo que verdadeiro (por exemplo,
+  chamar um filme de "brasileiro" quando isso nao consta na base). Isso
+  protege contra afirmacoes sem fonte, mas pode trocar respostas uteis por
+  uma resposta de evidencia insuficiente.
+- Perguntas que envolvem dois filmes dependem de a busca vetorial trazer
+  chunks dos dois; quando traz de apenas um, o assistente responde que nao
+  encontrou a informacao.
+- As defesas contra prompt injection sao baseadas em prompts e em
+  validacao de formato. Nos testes realizados nenhuma injection foi
+  obedecida, mas a amostra e pequena e o resultado vale para este modelo.
+  Em um sistema com ferramentas ou acoes externas, seriam necessarios
+  controles fora do modelo.
+- Detalhes, numeros e ressalvas da avaliacao dos prompts em
+  [`docs/ENGENHARIA_DE_PROMPT.md`](docs/ENGENHARIA_DE_PROMPT.md).
