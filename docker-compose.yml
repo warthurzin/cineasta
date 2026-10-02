@@ -9,6 +9,9 @@ services:
       - GROQ_API_KEY=${GROQ_API_KEY}
       - GROQ_MODEL=${GROQ_MODEL:-qwen/qwen3.8-27b}
       - CORS_ORIGINS=${CORS_ORIGINS:-*}
+      - PROMPT_VERSION=${PROMPT_VERSION:-v2}
+      - FEW_SHOT=${FEW_SHOT:-true}
+      - VERIFICAR_RESPOSTA=${VERIFICAR_RESPOSTA:-true}
     restart: unless-stopped
 
   frontend:
