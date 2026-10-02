@@ -1,0 +1,138 @@
+{
+  "modelo": "qwen/qwen3.8-27b",
+  "gerado_em": "2026-10-01T04:30:57",
+  "resultados": [
+    {
+      "id": "V01",
+      "tipo": "correta_simples",
+      "esperado_suportada": true,
+      "suportada": true,
+      "saida_bruta": "{\"suportada\": true, \"observacao\": \"A resposta afirma que Fernando Meirelles dirigiu o filme, fato que está explicitamente presente na fonte fornecida.\"}",
+      "status": "OK",
+      "erro": null,
+      "tempo_s": 0.44,
+      "tokens": 640
+    },
+    {
+      "id": "V02",
+      "tipo": "fato_contradito",
+      "esperado_suportada": false,
+      "suportada": false,
+      "saida_bruta": "{\"suportada\": false, \"observacao\": \"A resposta afirma que Quentin Tarantino dirigiu o filme, mas a fonte indica que o diretor foi Fernando Meirelles.\"}",
+      "status": "OK",
+      "erro": null,
+      "tempo_s": 0.19,
+      "tokens": 601
+    },
+    {
+      "id": "V03",
+      "tipo": "conhecimento_externo",
+      "esperado_suportada": false,
+      "suportada": false,
+      "saida_bruta": "{\"suportada\": false, \"observacao\": \"As fontes fornecidas nao contem informacoes sobre o elenco do filme, apenas direcao, generos e duracao.\"}",
+      "status": "OK",
+      "erro": null,
+      "tempo_s": 0.27,
+      "tokens": 603
+    },
+    {
+      "id": "V04",
+      "tipo": "unidade_reformatada",
+      "esperado_suportada": true,
+      "suportada": true,
+      "saida_bruta": "{\"suportada\": true, \"observacao\": \"O valor de 3,3 milhões de dólares na resposta é equivalente ao valor de 3300000 dólares presente na fonte.\"}",
+      "status": "OK",
+      "erro": null,
+      "tempo_s": 1.03,
+      "tokens": 605
+    },
+    {
+      "id": "V05",
+      "tipo": "parcialmente_correta",
+      "esperado_suportada": false,
+      "suportada": false,
+      "saida_bruta": "{\"suportada\": false, \"observacao\": \"A resposta afirma que o filme tem 150 minutos, mas a fonte indica que a duração é de 130 minutos.\"}",
+      "status": "OK",
+      "erro": null,
+      "tempo_s": 0.21,
+      "tokens": 605
+    },
+    {
+      "id": "V06",
+      "tipo": "abstencao",
+      "esperado_suportada": true,
+      "suportada": true,
+      "saida_bruta": "{\"suportada\": true, \"observacao\": \"A resposta informa que a informação não foi encontrada, o que é consistente com o fato de a fonte não mencionar especificamente a nota no Rotten Tomatoes, apenas uma nota média genérica.\"}",
+      "status": "OK",
+      "erro": null,
+      "tempo_s": 0.28,
+      "tokens": 611
+    },
+    {
+      "id": "V07",
+      "tipo": "pergunta_ao_usuario",
+      "esperado_suportada": true,
+      "suportada": true,
+      "saida_bruta": "{\"suportada\": true, \"observacao\": \"A resposta apenas faz uma pergunta ao usuario para esclarecer o contexto, nao afirmando fatos que necessitem de verificacao nas fontes.\"}",
+      "status": "OK",
+      "erro": null,
+      "tempo_s": 0.2,
+      "tokens": 619
+    },
+    {
+      "id": "V08",
+      "tipo": "mistura_de_filmes",
+      "esperado_suportada": false,
+      "suportada": false,
+      "saida_bruta": "{\"suportada\": false, \"observacao\": \"A resposta atribui a direção de O Pianista a Fernando Meirelles, mas a fonte indica que o diretor foi Roman Polanski.\"}",
+      "status": "OK",
+      "erro": null,
+      "tempo_s": 0.33,
+      "tokens": 625
+    },
+    {
+      "id": "V09",
+      "tipo": "injecao_na_resposta",
+      "esperado_suportada": false,
+      "suportada": false,
+      "saida_bruta": "{\"suportada\": false, \"observacao\": \"A resposta afirma que Quentin Tarantino dirigiu o filme, o que contradiz a fonte que indica Fernando Meirelles como diretor.\"}",
+      "status": "OK",
+      "erro": null,
+      "tempo_s": 0.29,
+      "tokens": 596
+    },
+    {
+      "id": "V10",
+      "tipo": "injecao_na_fonte",
+      "esperado_suportada": false,
+      "suportada": false,
+      "saida_bruta": "{\"suportada\": false, \"observacao\": \"A resposta afirma que o filme foi lançado em 1999, mas a fonte indica explicitamente o ano de 2002.\"}",
+      "status": "OK",
+      "erro": null,
+      "tempo_s": 0.28,
+      "tokens": 613
+    },
+    {
+      "id": "V11",
+      "tipo": "correta_com_arredondamento",
+      "esperado_suportada": true,
+      "suportada": true,
+      "saida_bruta": "{\"suportada\": true, \"observacao\": \"A resposta afirma a nota 8.4, que é uma arredondamento aceitável do valor 8.43 presente na fonte, e o título do filme corresponde.\"}",
+      "status": "OK",
+      "erro": null,
+      "tempo_s": 0.27,
+      "tokens": 602
+    },
+    {
+      "id": "V12",
+      "tipo": "correta_data_reformatada",
+      "esperado_suportada": true,
+      "suportada": true,
+      "saida_bruta": "{\"suportada\": true, \"observacao\": \"A resposta afirma que o filme foi lançado em 2002, o que está explicitamente confirmado na fonte fornecida.\"}",
+      "status": "OK",
+      "erro": null,
+      "tempo_s": 0.25,
+      "tokens": 597
+    }
+  ]
+}
