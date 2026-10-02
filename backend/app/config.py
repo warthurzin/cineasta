@@ -32,7 +32,14 @@ LLM_TEMPERATURE = float(os.getenv("LLM_TEMPERATURE", "0.1"))
 
 LLM_MAX_TOKENS = int(os.getenv("LLM_MAX_TOKENS", "900"))
 
+PROMPT_VERSION = os.getenv("PROMPT_VERSION", "v2")
+
+FEW_SHOT = os.getenv("FEW_SHOT", "true").lower() == "true"
+
+VERIFICAR_RESPOSTA = os.getenv("VERIFICAR_RESPOSTA", "true").lower() == "true"
+
 CORS_ORIGINS = os.getenv("CORS_ORIGINS", "*").split(",")
+
 
 def validar_configuracao():
     if not GROQ_API_KEY:
